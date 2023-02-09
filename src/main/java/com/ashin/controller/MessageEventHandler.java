@@ -1,8 +1,8 @@
 package com.ashin.controller;
 
-import com.ashin.bo.ChatBO;
-import com.ashin.service.InteractService;
 import com.ashin.util.BotUtil;
+import com.ashin.util.OpenAiUtils;
+import com.theokanning.openai.completion.CompletionChoice;
 import net.mamoe.mirai.event.EventHandler;
 import net.mamoe.mirai.event.ListenerHost;
 import net.mamoe.mirai.event.events.MessageEvent;
@@ -11,6 +11,7 @@ import net.mamoe.mirai.message.data.SingleMessage;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 import javax.annotation.Resource;
+import java.util.List;
 
 /**
  * 事件处理
@@ -20,10 +21,7 @@ import javax.annotation.Resource;
  */
 @Component
 public class MessageEventHandler implements ListenerHost {
-    @Resource
-    private InteractService interactService;
 
-    private static final String RESET_WORD = "重置会话";
 
     /**
      * 监听消息并把ChatGPT的回答发送到对应qq/群
@@ -33,8 +31,7 @@ public class MessageEventHandler implements ListenerHost {
      */
     @EventHandler
     public void onMessage(@NotNull MessageEvent event) {
-        ChatBO chatBO = new ChatBO();
-        chatBO.setSessionId(String.valueOf(event.getSubject().getId()));
+        System.out.println("监听到消息");
         if(event.getBot().getGroups().contains(event.getSubject().getId())) {
             //如果是在群聊
             //遍历收到的消息元素
@@ -42,29 +39,29 @@ public class MessageEventHandler implements ListenerHost {
                 if (singleMessage.equals(new At(event.getBot().getId()))) {
                     //存在@机器人的消息就向ChatGPT提问
                     //去除@再提问
-                    String prompt = event.getMessage().contentToString().replace("@" + event.getBot().getId(), "").trim();
-                    if (RESET_WORD.equals(prompt)){
-                        //检测到重置会话指令
-                        BotUtil.resetPrompt(chatBO.getSessionId());
-                        event.getSubject().sendMessage("重置会话成功");
-                    }else {
-                        chatBO.setPrompt(prompt);
-                        event.getSubject().sendMessage(interactService.chat(chatBO));
+                    String problem = event.getMessage().contentToString().replace("@" + event.getBot().getId(), "").trim();
+                    StringBuilder answer = new StringBuilder();
+                    System.out.println("开始提问:"+problem);
+                    List<CompletionChoice> questionAnswer = OpenAiUtils.getQuestionAnswer(problem);
+                    for (CompletionChoice completionChoice : questionAnswer) {
+                        answer.append(completionChoice.getText());
                     }
+                    System.out.println("回答:"+answer);
+                    event.getSubject().sendMessage(answer.toString());
                     break;
                 }
             }
         }else {
             //不是在群聊 则直接回复
-            String prompt = event.getMessage().contentToString().trim();
-            if (RESET_WORD.equals(prompt)){
-                //检测到重置会话指令
-                BotUtil.resetPrompt(chatBO.getSessionId());
-                event.getSubject().sendMessage("重置会话成功");
-            }else {
-                chatBO.setPrompt(prompt);
-                event.getSubject().sendMessage(interactService.chat(chatBO));
+            String problem = event.getMessage().contentToString().trim();
+            System.out.println("开始提问:"+problem);
+            StringBuilder answer = new StringBuilder();
+            List<CompletionChoice> questionAnswer = OpenAiUtils.getQuestionAnswer(problem);
+            for (CompletionChoice completionChoice : questionAnswer) {
+                answer.append(completionChoice.getText());
             }
+            System.out.println("回答:"+answer);
+            event.getSubject().sendMessage(answer.toString());
         }
     }
 }
